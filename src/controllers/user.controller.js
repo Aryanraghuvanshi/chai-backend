@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
-import { uplodeOnCloudinary } from "../utils/cloudinary.js";
+import { uplodeOnCloudinary,deleteFromCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from 'jsonwebtoken'
 
@@ -279,7 +279,7 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
         throw  new ApiError(400, "All fields are required")
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
@@ -308,12 +308,18 @@ const updateUserAvatar = asyncHandler(async(req,res)=>{
      if (!avatar.url) {
         throw new ApiError(400,"Error while uploading on avatar")
     }
+  
+     // Delete old avatar image from Cloudinary
+    const userData = await User.findById(req.user?._id).select("avatar");
+    if (userData?.avatar) {
+        await deleteFromCloudinary(userData.avatar);
+    }
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
-                coverImage: avatar.url
+                avatar: avatar.url
             }
         },
         {new: true}

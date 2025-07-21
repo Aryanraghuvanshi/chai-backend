@@ -17,7 +17,7 @@ const uplodeOnCloudinary = async (localFilePath) => {
         })
          //file has been uploaded successfull
         //  console.log("file has been uploaded on cloudinary",response.url);
-        //  console.log(response);
+         console.log(response);
          fs.unlinkSync(localFilePath)
          return response
             
@@ -27,5 +27,37 @@ const uplodeOnCloudinary = async (localFilePath) => {
     }
 }
 
+// This function deletes an image from Cloudinary
+const deleteFromCloudinary = async (imageUrl) => {
+    try {
+        // Step 1: If no URL is provided, stop here and return null
+        if (!imageUrl) return null;
 
-export{uplodeOnCloudinary}
+        // Step 2: Break the URL into parts using "/" as a separator
+        const urlParts = imageUrl.split("/");
+
+        // Step 3: Get the last 2 parts: folder name and filename
+        // Example: ["myfolder", "image.jpg"]
+        const folderAndFile = urlParts.slice(-2).join("/");
+
+        // Step 4: Remove the file extension (.jpg, .png, etc.) to get the public_id
+        // Example: "myfolder/image"
+        const publicId = folderAndFile.replace(/\.[^/.]+$/, "");
+
+        // Step 5: Ask Cloudinary to delete the image using the public_id
+        const result = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "image", // tells Cloudinary it's an image file
+        });
+
+        // Step 6: Return the result (could be success or failure details)
+        return result;
+
+    } catch (error) {
+        // If something goes wrong, just return null (you can also log the error)
+        console.error("Cloudinary delete error:", error);
+        return null;
+    }
+};
+
+
+export{uplodeOnCloudinary,deleteFromCloudinary}
