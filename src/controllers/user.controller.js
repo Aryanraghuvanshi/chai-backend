@@ -311,9 +311,13 @@ const updateUserAvatar = asyncHandler(async(req,res)=>{
   
      // Delete old avatar image from Cloudinary
     const userData = await User.findById(req.user?._id).select("avatar");
+    try {
     if (userData?.avatar) {
         await deleteFromCloudinary(userData.avatar);
     }
+} catch (err) {
+    console.warn("Failed to delete old avatar:", err.message);
+}
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
