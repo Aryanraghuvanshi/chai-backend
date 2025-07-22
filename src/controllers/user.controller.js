@@ -181,8 +181,8 @@ const logoutUser = asyncHandler(async(req,res)=>{
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set: {
-                refreshToken: undefined
+            $unset: {
+                refreshToken: 1 // this removes the field from document
             }
         },
         {
@@ -345,6 +345,17 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
      if (!coverImage.url) {
         throw new ApiError(400,"Error while uploading on cover image")
     }
+
+
+        // Delete old coverImage image from Cloudinary
+    const userData = await User.findById(req.user?._id).select("coverImage");
+    try {
+    if (userData?.coverImage) {
+        await deleteFromCloudinary(userData.coverImage);
+    }
+} catch (err) {
+    console.warn("Failed to delete old coverImage:", err.message);
+}
 
  const user = await User.findByIdAndUpdate(
         req.user?._id,
