@@ -4,7 +4,7 @@ import {User} from "../models/user.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
-import { uplodeOnCloudinary} from "../utils/cloudinary.js"
+import { deleteFromCloudinary, uplodeOnCloudinary} from "../utils/cloudinary.js"
 
 
 // get all videos based on query, sort, pagination
@@ -289,12 +289,75 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 });
 
+// update video details like title, description, thumbnail
 const updateVideo = asyncHandler(async (req, res) => {
-    const { videoId } = req.params
-    //TODO: update video details like title, description, thumbnail
-    
+     // 🎯 Extract data from request
+    const {title,description} = req.body;
+    const { videoId } = req.params;
 
-})
+    //  ✅ Step 1: Validate videoId
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400,"Invalid video Id");
+    }
+
+    // ✅ Step 2: Ensure title and description are provided
+    if(!(title || description)){
+        throw new ApiError(400, "Title and description are required");
+    }
+    
+    // ✅ Step 3: Find the video by ID
+    const video= await Video.findById(videoId);
+    if(!video) {
+         throw new ApiError(404, "Video not found");
+    }
+
+    // ✅ Step 4: Check if current user is the video owner
+    if(video.owner.toString() !== req.user?._id.toString()){
+      throw new ApiError(403, "You are not allowed to edit this video");
+    }
+
+    // ✅ Step 5: Ensure thumbnail is uploaded
+    const newThumbnailpath = req.file?.path;
+    if (!newThumbnailpath) {
+        throw new ApiError(400,"New thumbnail image is required");
+    }
+
+    //TODO Add - Validate file type and size before uploading
+
+    // ✅ Step 6: Upload new thumbnail to Cloudinary
+    const uploadedThumbnail = await uplodeOnCloudinary(newThumbnailpath);
+    if(!uploadedThumbnail.url){
+        throw new ApiError(500,"Failed to upload thumbnail");
+    }
+
+     // ✅ Step 7: Update video document in DB
+     const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                title,
+                description,
+                thumbnail:{
+                    public_id:uploadedThumbnail.public_id,
+                    url:uploadedThumbnail.url,
+                }
+            }
+        },
+        {new : true} // Return the updated document
+     );
+
+     if (!updatedVideo) {
+        throw new ApiError(500, "Failed to update video. Please try again.");
+     }
+
+      // ✅ Step 8: Delete old thumbnail from Cloudinary
+      await deleteFromCloudinary (video.thumbnail.public_id);
+
+      // ✅ Step 9: Send updated video in response
+      return res.status(200).json(
+        new ApiResponse(200,updatedVideo,"Video updated successfully")
+      );
+});
 
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
