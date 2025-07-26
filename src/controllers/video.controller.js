@@ -5,6 +5,8 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { deleteFromCloudinary, uplodeOnCloudinary} from "../utils/cloudinary.js"
+import { Like } from "../models/like.model.js"
+import { Comment } from "../models/comment.model.js"
 
 
 // get all videos based on query, sort, pagination
@@ -359,9 +361,48 @@ const updateVideo = asyncHandler(async (req, res) => {
       );
 });
 
+// delete video
 const deleteVideo = asyncHandler(async (req, res) => {
-    const { videoId } = req.params
-    //TODO: delete video
+    const { videoId } = req.params;
+
+    // ✅ Step 1: Check if the provided videoId is a valid MongoDB ObjectId
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400,"Invalid video ID");
+    }
+
+    // ✅ Step 2: Find the video by its ID
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(400,"Video not found")       
+    }
+
+    // ✅ Step 3: Make sure the requesting user is the owner of the video
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403,"You are not allowed to delete this video");
+    }
+
+    // ✅ Step 4: Delete the video from MongoDB
+    const videoDelete = await Video.findByIdAndDelete(videoId);
+    if (!videoDelete) {
+        throw new ApiError(500,"Failed to delete the video. Plaese try again");
+    }
+
+    // ✅ Step 5: Delete thumbnail from Cloudinary
+    await deleteFromCloudinary(video.thumbnail.public_id);
+
+    // ✅ Step 6: Delete video file from Cloudinary (type = "video")
+    await deleteFromCloudinary(video.videoFile.public_id,"video");
+
+    // ✅ Step 7: Delete all likes associated with this video
+    await Like.deleteMany({ video: videoId });
+    
+    // ✅ Step 8: Delete all comments associated with this video
+    await Comment.deleteMany({video: videoId});
+
+    // ✅ Step 9: Send success response
+    return res.status(200)
+    .json( new ApiResponse(200,{},"Video deleted successfully")
+    );
 })
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
