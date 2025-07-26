@@ -28,13 +28,13 @@ const uplodeOnCloudinary = async (localFilePath) => {
 }
 
 // This function deletes an image from Cloudinary
-const deleteFromCloudinary = async (imageUrl) => {
+const deleteFromCloudinary = async (fileUrl) => {
     try {
         // Step 1: If no URL is provided, stop here and return null
-        if (!imageUrl) return null;
+        if (!fileUrl) return null;
 
         // Step 2: Break the URL into parts using "/" as a separator
-        const urlParts = imageUrl.split("/");
+        const urlParts = fileUrl.split("/");
 
         // Step 3: Get the last 2 parts: folder name and filename
         // Example: ["myfolder", "image.jpg"]
@@ -44,9 +44,16 @@ const deleteFromCloudinary = async (imageUrl) => {
         // Example: "myfolder/image"
         const publicId = folderAndFile.replace(/\.[^/.]+$/, "");
 
+        //  Determine resource type based on file extension
+         const extension = fileUrl.split('.').pop().toLowerCase();
+        let resourceType = "image";
+        if (["mp4", "mov", "avi", "wmv", "flv", "mkv", "webm"].includes(extension)) {
+            resourceType = "video";
+        }
+
         // Step 5: Ask Cloudinary to delete the image using the public_id
         const result = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "image", // tells Cloudinary it's an image file
+            resource_type: resourceType, // tells Cloudinary it's an image file
         });
 
         // Step 6: Return the result (could be success or failure details)

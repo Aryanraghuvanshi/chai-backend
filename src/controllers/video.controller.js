@@ -129,13 +129,13 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
     //upload video to cloudinary
     const uploadVideo = await uplodeOnCloudinary(videoFileLocalPath);
-    if ( !updateVideo?.url) {
+    if ( !uploadVideo?.url) {
         throw new ApiError(500, "Failed to upload video to cloud.");
     }
 
     //uplaod thumbnail to cloudinary
     const uploadThumbnail = await uplodeOnCloudinary(thumbnailLocalPath);
-    if (uploadThumbnail?.url) {
+    if (!uploadThumbnail?.url) {
         throw new ApiError(500, "Failed to upload thumbnail to cloud.");
     }
 
@@ -144,14 +144,16 @@ const publishAVideo = asyncHandler(async (req, res) => {
         title,
         description,
         duration: updateVideo.duration,
-        videoFile:{
-            url: uploadVideo.url,
-            public_id: uploadVideo.public_id
-        },
-        thumbnail:{
-            url: uploadThumbnail.url,
-            public_id: uploadThumbnail.public_id
-        },
+        videoFile:uploadVideo.url,
+        // videoFile:{
+        //     url: uploadVideo.url,
+        //     public_id: uploadVideo.public_id
+        // },
+        // thumbnail:{
+        //     url: uploadThumbnail.url,
+        //     public_id: uploadThumbnail.public_id
+        // },
+        thumbnail:uploadThumbnail.url,
         owner: req.user._id, //user is added by auth middleware
         isPublished: false
     });
@@ -180,7 +182,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     // ✅ Validate logged-in user's ID
     const userId = req.user?._id;
     if (!isValidObjectId(userId)) {
-      throw new ApiError(400,"invaalid userId");
+      throw new ApiError(400,"invalid userId");
     }
 
     // ✅ Fetch video details using MongoDB aggregation
@@ -194,7 +196,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         {
             // 👍 Join with likes collection
             $lookup:{
-                form:"likes",
+                from:"likes",
                 localField:"_id",
                 foreignField:"video",
                 as:"likes"
@@ -339,10 +341,11 @@ const updateVideo = asyncHandler(async (req, res) => {
             $set:{
                 title,
                 description,
-                thumbnail:{
-                    public_id:uploadedThumbnail.public_id,
-                    url:uploadedThumbnail.url,
-                }
+                thumbnail: uploadedThumbnail.url,
+                // thumbnail:{
+                //     public_id:uploadedThumbnail.public_id,
+                //     url:uploadedThumbnail.url,
+                // }
             }
         },
         {new : true} // Return the updated document
@@ -353,7 +356,7 @@ const updateVideo = asyncHandler(async (req, res) => {
      }
 
       // ✅ Step 8: Delete old thumbnail from Cloudinary
-      await deleteFromCloudinary (video.thumbnail.public_id);
+      await deleteFromCloudinary (video.thumbnail);
 
       // ✅ Step 9: Send updated video in response
       return res.status(200).json(
@@ -384,14 +387,16 @@ const deleteVideo = asyncHandler(async (req, res) => {
     // ✅ Step 4: Delete the video from MongoDB
     const videoDelete = await Video.findByIdAndDelete(videoId);
     if (!videoDelete) {
-        throw new ApiError(500,"Failed to delete the video. Plaese try again");
+        throw new ApiError(500,"Failed to delete the video. Please try again");
     }
 
     // ✅ Step 5: Delete thumbnail from Cloudinary
-    await deleteFromCloudinary(video.thumbnail.public_id);
+    // await deleteFromCloudinary(video.thumbnail.public_id);
+    await deleteFromCloudinary(video.thumbnail);
 
     // ✅ Step 6: Delete video file from Cloudinary (type = "video")
-    await deleteFromCloudinary(video.videoFile.public_id,"video");
+    // await deleteFromCloudinary(video.videoFile.public_id,"video");
+    await deleteFromCloudinary(video.videoFile);
 
     // ✅ Step 7: Delete all likes associated with this video
     await Like.deleteMany({ video: videoId });
@@ -405,8 +410,48 @@ const deleteVideo = asyncHandler(async (req, res) => {
     );
 })
 
+// toggle publish status of a video
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+
+    // ✅ Step 1: Check if the videoId is a valid MongoDB ObjectId
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(400,"Invalid video ID");   
+    }
+
+    // ✅ Step 2: Find the video by ID
+    const video = await Video.findById(videoId);
+    if (!video) {
+        throw new ApiError(404,"Video not found")
+    }
+
+    // ✅ Step 3: Check if the logged-in user is the owner of the video
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        throw new ApiError(403,"You are not authorized to toggle publish status");
+    }
+
+    // ✅ Step 4: Toggle the 'isPublished' status of the video
+
+    const toggleVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                isPublished: !video.isPublished
+            }
+        },
+        {new:true}
+    );
+
+    // ✅ Step 5: Handle failure to update
+    if (!toggleVideo) {
+        throw new ApiError(500,"Failed to toggle video publish status");
+    }
+
+    // ✅ Step 6: Send success response with the new status
+    return res.status(200)
+    .json( new ApiResponse(200,
+    {isPublished: toggleVideo.isPublished},"Video publish status toggled successfully"))
+
 })
 
 export {
