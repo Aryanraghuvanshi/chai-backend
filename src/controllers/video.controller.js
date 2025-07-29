@@ -143,7 +143,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     const newVideo = await Video.create({
         title,
         description,
-        duration: updateVideo.duration,
+        duration: uploadVideo.duration,
         videoFile:uploadVideo.url,
         // videoFile:{
         //     url: uploadVideo.url,
@@ -213,7 +213,7 @@ const getVideoById = asyncHandler(async (req, res) => {
                     {
                           // 📺 Join with subscriptions collection to get subscriber info
                         $lookup:{
-                            form:"subscriptions",
+                            from:"subscriptions",
                             localField:"_id",
                             foreignField:"channel",
                             as:"subscribers"
@@ -305,9 +305,9 @@ const updateVideo = asyncHandler(async (req, res) => {
     }
 
     // ✅ Step 2: Ensure title and description are provided
-    if(!(title || description)){
-        throw new ApiError(400, "Title and description are required");
-    }
+    // if(!(title || description)){
+    //     throw new ApiError(400, "Title and description are required");
+    // } //you can use if you want and its optional if you want to update only title or description
     
     // ✅ Step 3: Find the video by ID
     const video= await Video.findById(videoId);
@@ -391,11 +391,9 @@ const deleteVideo = asyncHandler(async (req, res) => {
     }
 
     // ✅ Step 5: Delete thumbnail from Cloudinary
-    // await deleteFromCloudinary(video.thumbnail.public_id);
     await deleteFromCloudinary(video.thumbnail);
 
-    // ✅ Step 6: Delete video file from Cloudinary (type = "video")
-    // await deleteFromCloudinary(video.videoFile.public_id,"video");
+    // ✅ Step 6: Delete video file from Cloudinary
     await deleteFromCloudinary(video.videoFile);
 
     // ✅ Step 7: Delete all likes associated with this video
