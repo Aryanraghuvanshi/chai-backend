@@ -105,7 +105,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     // 4. If not liked yet, add a like
     await Like.create({
         tweet:tweetId,
-        likedBy:rq.user._id
+        likedBy:req.user._id
     })
 
       return res.status(200).json(
